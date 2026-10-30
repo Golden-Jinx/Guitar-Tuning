@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stringroom · 音频集成测试</title></head>
+<body><p id="harness-loading">正在载入实际调音器与测试音源……</p>
+<script type="module">
+// Serve the tuner folder on a separate port to isolate origin storage:
+// python -m http.server 8766 --bind 127.0.0.1 --directory tuner
+// Open http://127.0.0.1:8766/tests/audio-harness.html
+// Select a signal, then use the ORIGINAL app's 开启麦克风 button.
+// Delay test: 延迟授权 → app 开启麦克风 → app 点此取消 → 允许等待中的请求.
+const distURL = new URL('../dist/', location.href);
+const originalSaved = localStorage.getItem('stringroom-v1');
+localStorage.setItem('stringroom-v1', JSON.stringify({ instrument: 'guitar', presetId: 'guitar-standard', a4: 440, tolerance: 5, sensitivity: .003, customs: [] }));
+let restored = false;
+function restoreStorage() {
+  if (restored) return;
+  restored = true;
+  if (originalSaved === null) localStorage.removeItem('stringroom-v1');
+  else localStorage.setItem('stringroom-v1', originalSaved);
+}
+window.addEventListener('pagehide', restoreStorage);
+
+const testState = {
+  signal: 'sine83', policy: 'allow', requests: 0, started: 0, stopped: 0,
+  pending: [], sessions: new Set(), context: null, latest: '正在载入',
+};
+window.__audioHarness = testState;
+function status(message) {
+  if (message) testState.latest = message;
+  const element = document.getElementById('harness-status');
+  if (element) element.textContent = `${testState.latest} | 请求 ${testState.requests} · 创建 ${testState.started} · 停止 ${testState.stopped} · 活跃 ${testState.sessions.size} · 等待 ${testState.pending.length}`;
+}
+async function generatorContext() {
+  if (!testState.context || testState.context.state === 'closed') testState.context = new AudioContext({ latencyHint: 'interactive' });
+  await testState.context.resume();
+  return testState.context;
+}
+function applySignal(session) {
+  const { oscillator, gain, context } = session;
+  const frequencies = { sine83: 83, bassB0: 30.8677063285, harmonicE1: 41.2034446141, silence: 83 };
+  oscillator.frequency.setValueAtTime(frequencies[testState.signal], context.currentTime);
+  if (testState.signal === 'harmonicE1') {
+    const imaginary = new Float32Array([0, .35, 1, .7, .4, .25, .1]);
+    oscillator.setPeriodicWave(context.createPeriodicWave(new Float32Array(imaginary.length), imaginary));
+  } else oscillator.type = 'sine';
+  gain.gain.setValueAtTime(testState.signal === 'silence' ? 0 : .3, context.currentTime);
+}
+async function syntheticStream() {
+  const context = await generatorContext();
+  const destination = context.createMediaStreamDestination();
+  destination.channelCount = 1;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.connect(gain); gain.connect(destination);
+  const session = { context, oscillator, gain, destination, stream: destination.stream, closed: false };
+  applySignal(session); oscillator.start(); testState.sessions.add(session); testState.started++;
+  for (const track of session.stream.getTracks()) {
+    const realStop = track.stop.bind(track);
+    Object.defineProperty(track, 'stop', { configurable: true, value() {
+      realStop();
+      if (session.closed) return;
+      session.closed = true;
+      try { oscillator.stop(); oscillator.disconnect(); gain.disconnect(); } catch {}
+      testState.sessions.delete(session); testState.stopped++;
+      status('应用已释放测试音轨');
+    } });
+  }
+  status('已提供合成音频；没有使用真实麦克风');
+  return session.stream;
+}
+const fakeMediaDevices = new EventTarget();
+fakeMediaDevices.enumerateDevices = async () => [{ deviceId: 'synthetic-input', kind: 'audioinput', label: '测试音源（无真实麦克风）', groupId: 'harness' }];
+fakeMediaDevices.getUserMedia = async () => {
+  testState.requests++;
+  if (testState.policy === 'deny') { status('模拟权限拒绝'); throw new DOMException('Harness denied microphone permission', 'NotAllowedError'); }
+  if (testState.policy === 'delay') return new Promise((resolve, reject) => { testState.pending.push({ resolve, reject }); status('授权请求等待手动处理；可在应用中取消'); });
+  return syntheticStream();
+};
+Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: fakeMediaDevices });
+// Keep this harness independent of service-worker caches and registrations.
+if ('serviceWorker' in navigator) Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { register: async () => ({ scope: 'harness-disabled' }) } });
+
+try {
+  const response = await fetch(new URL('index.html', distURL), { cache: 'no-store' });
+  if (!response.ok) throw new Error(`无法载入 ../dist/index.html (${response.status})`);
+  const source = new DOMParser().parseFromString(await response.text(), 'text/html');
+  source.querySelectorAll('script').forEach(script => script.remove());
+  const base = document.createElement('base'); base.href = distURL.href;
+  document.head.replaceChildren(base, ...Array.from(source.head.childNodes, node => node.cloneNode(true)));
+  document.title = 'Stringroom · 合成音频集成测试';
+  const style = document.createElement('style');
+  style.textContent = `body{padding-top:148px!important}#harness-toolbar{position:fixed;inset:0 0 auto;z-index:2147483647;background:#142536;color:#fff;padding:10px 16px;font:13px/1.45 system-ui;box-shadow:0 2px 10px #0004}#harness-toolbar strong{font-size:15px}#harness-toolbar .harness-controls{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0}#harness-toolbar button{border:1px solid #76879a;border-radius:5px;background:#f4f7fa;color:#152738;padding:5px 8px;cursor:pointer;font:12px system-ui}#harness-toolbar button[aria-pressed=true]{background:#a7edce}#harness-status{display:block;font-family:ui-monospace,monospace}#harness-toolbar details{position:absolute;right:16px;top:10px;background:#142536;padding:0 4px;max-width:70vw}#harness-toolbar code{display:block;white-space:pre-wrap}@media(max-width:750px){body{padding-top:200px!important}#harness-toolbar details{position:static}}`;
+  document.head.append(style);
+  const toolbar = document.createElement('section'); toolbar.id = 'harness-toolbar'; toolbar.setAttribute('aria-label', '音频集成测试控制');
+  toolbar.innerHTML = `<strong>音频测试台 · 实际应用 + 合成输入，不访问真实麦克风</strong>
+    <div class="harness-controls">
+      <button id="harness-sine83" data-signal="sine83" aria-pressed="true">E2 偏高 · 83 Hz</button>
+      <button id="harness-bassB0" data-signal="bassB0" aria-pressed="false">低音 B0 · 30.87 Hz</button>
+      <button id="harness-harmonicE1" data-signal="harmonicE1" aria-pressed="false">强泛音 E1 · 41.20 Hz</button>
+      <button id="harness-silence" data-signal="silence" aria-pressed="false">静音</button>
+      <button id="harness-deny">下次请求拒绝权限</button>
+      <button id="harness-delay">下次请求延迟授权</button>
+      <button id="harness-resolve">允许等待中的请求</button>
+      <button id="harness-reject">拒绝等待中的请求</button>
+    </div><output id="harness-status" aria-live="polite"></output>
+    <details><summary>运行与操作说明</summary><p>另开端口，在工作区执行：</p><code>python -m http.server 8766 --bind 127.0.0.1 --directory tuner</code><p>打开 /tests/audio-harness.html。先选测试音，再点应用的「开启麦克风」。更换信号会立即更新正在运行的音轨。拒绝/延迟只影响下一次请求；请先停止应用拾音。取消测试：延迟授权 → 开启麦克风 → 点此取消 → 允许等待中的请求，应看到活跃音轨回到 0。关闭页面时恢复进入前的本地设置。</p></details>`;
+  document.body.replaceChildren(toolbar, ...Array.from(source.body.childNodes, node => node.cloneNode(true)));
+  toolbar.querySelectorAll('[data-signal]').forEach(button => button.onclick = async () => {
+    testState.signal = button.dataset.signal; testState.policy = 'allow';
+    await generatorContext();
+    testState.sessions.forEach(applySignal);
+    toolbar.querySelectorAll('[data-signal]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+    status(`信号：${button.textContent}；下次请求正常允许`);
+  });
+  document.getElementById('harness-deny').onclick = () => { testState.policy = 'deny'; status('下一次开启麦克风将模拟 NotAllowedError'); };
+  document.getElementById('harness-delay').onclick = () => { testState.policy = 'delay'; status('下一次开启麦克风将等待手动授权'); };
+  document.getElementById('harness-resolve').onclick = async () => {
+    const pending = testState.pending.splice(0);
+    if (!pending.length) return status('没有等待中的请求');
+    for (const request of pending) { try { request.resolve(await syntheticStream()); } catch (error) { request.reject(error); } }
+    status('已允许等待中的请求；取消过的请求应被应用立即释放');
+  };
+  document.getElementById('harness-reject').onclick = () => {
+    for (const request of testState.pending.splice(0)) request.reject(new DOMException('Harness denied delayed permission', 'NotAllowedError'));
+    status('已拒绝等待中的请求');
+  };
+  window.addEventListener('pagehide', () => { for (const session of testState.sessions) session.stream.getTracks().forEach(track => track.stop()); void testState.context?.close(); });
+  await import(new URL(`app.mjs?harness=${Date.now()}`, distURL));
+  status('就绪：先选测试音，然后点应用「开启麦克风」');
+} catch (error) {
+  document.body.textContent = `测试台加载失败：${error.stack || error.message}`;
+  restoreStorage();
+}
+</script></body>
+</html>

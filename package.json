@@ -1,0 +1,48 @@
+{
+  "name": "stringroom",
+  "productName": "Stringroom",
+  "version": "1.0.0",
+  "description": "Offline guitar and bass tuner with alternate and custom tunings",
+  "author": "Stringroom contributors",
+  "license": "UNLICENSED",
+  "main": "electron/main.cjs",
+  "packageManager": "pnpm@11.25.0",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check electron/main.cjs && node --check electron/policy.cjs && node --check dist/app.mjs",
+    "pack:dir": "electron-builder --win --x64 --dir --publish never",
+    "pack:win": "node scripts/build-windows.mjs",
+    "smoke": "node scripts/smoke-test.mjs",
+    "checksums": "node scripts/checksums.mjs"
+  },
+  "devDependencies": {
+    "electron": "45.1.0",
+    "electron-builder": "26.16.0"
+  },
+  "build": {
+    "appId": "com.stringroom.tuner",
+    "productName": "Stringroom",
+    "asar": true,
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["electron/**/*", "dist/**/*", "package.json", "!dist/sw.js", "!dist/manifest.webmanifest"],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [{ "target": "portable", "arch": ["x64"] }, { "target": "nsis", "arch": ["x64"] }]
+    },
+    "portable": { "artifactName": "Stringroom-${version}-Windows-x64-Portable.exe" },
+    "nsis": {
+      "artifactName": "Stringroom-${version}-Windows-x64-Setup.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": false
+    },
+    "publish": null
+  }
+}

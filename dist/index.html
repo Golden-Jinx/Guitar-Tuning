@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f4ee">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Stringroom">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="description" content="Guitar and bass tuner with alternate and custom tunings. Audio is processed on your device.">
+  <title>Stringroom · Guitar &amp; Bass Tuner</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <header class="header wrap">
+    <a class="brand" href="./" aria-label="Stringroom home"><span class="brand-mark" aria-hidden="true">≋</span><strong>Stringroom</strong></a>
+    <div class="header-right"><span class="privacy"><i></i>Local audio processing</span><button id="help-open" class="icon-button" title="Help" aria-label="Help">?</button><button id="settings-open" class="icon-button" title="Settings" aria-label="Settings">⚙</button></div>
+  </header>
+  <main class="wrap">
+    <div class="workspace">
+      <section class="tuner-panel" aria-label="Tuner">
+        <div class="panel-top"><span id="listening-status" class="status"><i></i>Microphone off</span><button id="calibration-open" class="calibration">A4 = <span id="a4-label">440</span> Hz ↗</button></div>
+        <div class="reading" id="reading" data-state="idle">
+          <p id="target-label" class="target-label">Auto string detection</p>
+          <div class="note-line"><span id="detected-note">—</span><span id="detected-octave" class="octave"></span></div>
+          <div class="frequency-line"><span id="detected-frequency">— Hz</span><span class="frequency-separator">/</span><span id="target-frequency">Target — Hz</span></div>
+          <div class="gauge" id="gauge" role="meter" aria-label="Pitch deviation in cents" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="0">
+            <div class="gauge-center"></div><div class="gauge-ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="needle" id="needle"></div>
+            <div class="gauge-labels"><span>−50</span><span>−25</span><span>0</span><span>+25</span><span>+50</span></div>
+          </div>
+          <div class="direction"><strong id="cents-value">— <small>cents</small></strong></div>
+          <p id="guidance" class="guidance" role="status" aria-live="polite"></p>
+        </div>
+        <div id="error-box" class="error-box" role="alert" hidden></div>
+        <div class="microphone-controls"><button id="mic-toggle" class="primary-button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4m-4 0h8"/></svg><span>Start microphone</span></button><div class="level-wrap"><div class="level-track"><i id="level-fill"></i></div><span id="level-label">Input level</span></div></div>
+        <div id="strings-section" class="strings-section"><div class="strings-heading"><h2 id="current-tuning">Standard</h2><button id="auto-toggle" class="auto-button" aria-pressed="true">Auto</button></div><div id="strings" class="strings"></div></div>
+      </section>
+      <aside class="library" aria-label="Tuning library"><h2 class="library-title">Tunings</h2><div class="instrument-switch" aria-label="Instrument"><button data-instrument="guitar" aria-pressed="true">Guitar</button><button data-instrument="bass" aria-pressed="false">Bass</button><button data-instrument="chromatic" aria-pressed="false">Chromatic</button></div><label id="tuning-search-wrap" class="tuning-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="tuning-search" type="search" placeholder="Search tunings" autocapitalize="off" spellcheck="false" aria-label="Search tunings" autocomplete="off" maxlength="120"></label><div id="preset-list" class="preset-list"></div><p id="tuning-order-status" class="sr-only" role="status" aria-live="polite"></p><button id="custom-open" class="custom-button"><span>＋</span> Custom tuning</button></aside>
+    </div>
+  </main>
+  <dialog id="custom-dialog"><form id="custom-form"><div class="dialog-heading"><h2 id="custom-title">Custom tuning</h2><button type="button" class="close-button" data-close aria-label="Close">×</button></div><label class="field">Name<input id="custom-name" maxlength="48" placeholder="My Open C" required></label><label class="field">Notes · lowest string first<input id="custom-notes" maxlength="120" placeholder="C2 G2 C3 G3 C4 E4" autocapitalize="characters" autocorrect="off" spellcheck="false" required></label><p class="field-help">1–12 strings, separated by spaces or commas. Include octave numbers; C4 is middle C. Sharps and flats supported. Range: A0–B6.</p><div id="custom-preview" class="custom-preview"></div><p id="custom-error" class="form-error" role="alert"></p><button type="submit" class="primary-button full-width">Save &amp; use</button></form></dialog>
+  <dialog id="settings-dialog"><div class="dialog-heading"><h2>Settings</h2><button class="close-button" data-close aria-label="Close">×</button></div><label class="field">Audio input<select id="audio-device"><option value="">System default</option></select></label><p class="field-help">Enable the microphone to see device names. An audio interface can provide direct guitar or bass input.</p><div class="settings-row"><label class="field">A4 reference (Hz)<input id="a4-input" type="number" min="415" max="466" step="1" value="440"></label><label class="field">Tolerance<select id="tolerance-input"><option value="3">±3 cents · Fine</option><option value="5" selected>±5 cents · Standard</option><option value="10">±10 cents · Wide</option></select></label></div><label class="field">Input sensitivity<select id="sensitivity-input"><option value="0.0015">High · quiet room</option><option value="0.003" selected>Standard</option><option value="0.008">Low · noisy room</option></select></label><div class="settings-data"><span>Custom tunings</span><div><button id="export-custom" class="small-button">Export</button><button id="import-custom" class="small-button">Import</button></div></div><input type="file" id="import-file" accept=".json,application/json" hidden><p class="field-help">Saved in this browser. Export a backup before clearing site data.</p><p id="settings-message" role="status" class="field-help"></p></dialog>
+  <dialog id="help-dialog"><div class="dialog-heading"><h2>Help</h2><button class="close-button" data-close aria-label="Close">×</button></div><dl class="help-list"><dt>Input</dt><dd>Select a tuning, enable the microphone and pluck one open string at a time.</dd><dt>Tunings</dt><dd>Search by name or notes. Drag the left handle to reorder. Keyboard: focus the handle, then use arrow keys, Home or End.</dd><dt>Strings</dt><dd>Click to lock a string. Double-tap or double-click to hear its reference tone. Keyboard: Shift + Enter. Select Auto to resume automatic matching.</dd><dt>Pitch</dt><dd>Flat: tighten. Sharp: loosen. Green indicates the selected tolerance. One cent is 1/100 of a semitone.</dd><dt>Chromatic</dt><dd>Detects any note, without a preset string layout.</dd><dt>Bass &amp; electric guitar</dt><dd>A direct audio interface often works better for low bass notes or an unamplified electric guitar.</dd></dl><p class="field-help">Input pauses briefly during reference playback. Check string tension before large tuning changes.</p><p class="field-help">If input is unavailable, allow desktop apps to access the microphone in Windows privacy settings. <a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia" target="_blank" rel="noopener">Permission help ↗</a></p></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
+
